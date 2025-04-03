@@ -1,0 +1,15 @@
+{
+  "intentName": "QnAIntent",
+  "description": "Q&A via Knowledge Base",
+  "parentIntentSignature": "AMAZON.QnAIntent",
+  "qnAIntentConfiguration": {
+    "dataSourceConfiguration": {
+      "bedrockKnowledgeStoreConfiguration": {
+        "bedrockKnowledgeBaseArn": "arn:aws:bedrock:eu-west-2:727581588267:knowledge-base/OXSVQINGMN"
+      }
+    },
+    "bedrockModelConfiguration": {
+      "modelArn": "arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0"
+    }
+  }
+}

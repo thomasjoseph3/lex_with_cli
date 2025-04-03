@@ -1,0 +1,140 @@
+service: my-lex-bot
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: eu-west-2
+  environment:
+    KNOWLEDGE_BASE: ${env:KNOWLEDGE_BASE}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - lex:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource: "arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0"
+        - Effect: Allow
+          Action:
+            - bedrock:Retrieve
+          Resource: 
+            - "arn:aws:bedrock:eu-west-2:727581588267:knowledge-base/${env:KNOWLEDGE_BASE}"
+            - "arn:aws:bedrock:eu-west-2:727581588267:knowledge-base/${env:KNOWLEDGE_BASE}/*"
+
+functions:
+  BotHandler:
+    handler: handler.handler
+    name: my-lex-bot-handler
+    environment:
+      BOT_ID: !Ref MyLexBot
+      BOT_ALIAS_ID: !GetAtt MyLexBotAlias.BotAliasId
+      LOCALE_ID: "en_US"
+    events:
+      - httpApi:
+          path: /bot
+          method: post
+
+resources:
+  Resources:
+    LexBotRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lexv2.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: LexBotPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - lex:*
+                  Resource: "*"
+                - Effect: Allow
+                  Action:
+                    - bedrock:InvokeModel
+                  Resource: "arn:aws:bedrock:eu-west-2::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0"
+                - Effect: Allow
+                  Action:
+                    - bedrock:Retrieve
+                  Resource: 
+                    - "arn:aws:bedrock:eu-west-2:727581588267:knowledge-base/${env:KNOWLEDGE_BASE}"
+                    - "arn:aws:bedrock:eu-west-2:727581588267:knowledge-base/${env:KNOWLEDGE_BASE}/*"
+
+    MyLexBot:
+      Type: AWS::Lex::Bot
+      Properties:
+        Name: MySampleBot
+        RoleArn: !GetAtt LexBotRole.Arn
+        DataPrivacy:
+          ChildDirected: false
+        IdleSessionTTLInSeconds: 300
+        BotLocales:
+          - LocaleId: en_US
+            NluConfidenceThreshold: 0.40
+            Intents:
+              - Name: GreetingIntent
+                SampleUtterances:
+                  - Utterance: Hello
+                  - Utterance: Hi
+                IntentClosingSetting:
+                  ClosingResponse:
+                    MessageGroupsList:
+                      - Message:
+                          PlainTextMessage:
+                            Value: "Hello! How can I help you today?"
+              - Name: FallbackIntent
+                ParentIntentSignature: AMAZON.FallbackIntent
+                IntentClosingSetting:
+                  ClosingResponse:
+                    MessageGroupsList:
+                      - Message:
+                          PlainTextMessage:
+                            Value: "I'm sorry, I didn't understand that. Can you please rephrase?"
+
+    MyLexBotVersion:
+      Type: AWS::Lex::BotVersion
+      Properties:
+        BotId: !Ref MyLexBot
+        BotVersionLocaleSpecification:
+          - LocaleId: en_US
+            BotVersionLocaleDetails:
+              SourceBotVersion: "DRAFT"
+      DependsOn: MyLexBot
+
+    MyLexBotAlias:
+      Type: AWS::Lex::BotAlias
+      Properties:
+        BotAliasName: prod
+        BotId: !Ref MyLexBot
+        BotVersion: "1"
+        BotAliasLocaleSettings:
+          - LocaleId: en_US
+            BotAliasLocaleSetting:
+              Enabled: true
+      DependsOn: MyLexBotVersion
+
+outputs:
+  BotId:
+    Description: The ID of the Lex Bot
+    Value: !Ref MyLexBot
+  AliasId:
+    Description: The ID of the Lex Bot Alias
+    Value: !GetAtt MyLexBotAlias.BotAliasId
